@@ -62,6 +62,22 @@
   .item { font-size: var(--fs); font-weight: var(--fw); color: var(--text); line-height: 1.25; letter-spacing: -0.01em; }
   .sep { font-size: var(--fs); font-weight: var(--fw); color: var(--sep-color); line-height: 1.25; margin: 0 calc(var(--gap) / 2); }
 
+  .floats { position: absolute; inset: 0; pointer-events: none; font-family: var(--font); }
+  .float {
+    position: absolute; left: 0; top: 0; max-width: var(--f-maxw); box-sizing: border-box;
+    padding: .5em .95em; background: var(--f-bg); color: var(--f-color);
+    font-size: var(--f-fs); font-weight: var(--f-fw); line-height: 1.35; letter-spacing: -0.01em;
+    word-break: keep-all; overflow-wrap: anywhere; text-wrap: balance; white-space: pre-line;
+    width: max-content; transform-origin: 50% 100%; will-change: transform, opacity;
+  }
+  .floats[data-shape="bubble"] .float { border-radius: 1.1em; }
+  .floats[data-shape="bubble"] .float::after {
+    content: ''; position: absolute; left: 1.1em; bottom: -.42em;
+    border: .45em solid transparent; border-top-color: var(--f-bg); border-bottom: 0;
+  }
+  .floats[data-shape="pill"] .float { border-radius: 999px; padding: .45em 1.1em; }
+  .floats[data-shape="card"] .float { border-radius: .35em; border-left: .3em solid var(--f-color); }
+
   .hud {
     position: fixed; left: 24px; top: 24px; z-index: 10; max-width: 560px;
     padding: 16px 20px; border-radius: 12px; background: rgba(0, 0, 0, .82); color: #fff;
@@ -84,6 +100,7 @@
   const stage = document.getElementById('stage');
   const hud = document.getElementById('hud');
   const renderer = new Ticker.Renderer(stage);
+  const floats = new Ticker.FloatLayer(stage);
   let mode = '…';
   let connected = true;
 
@@ -94,6 +111,7 @@
     const y = Math.round(((innerHeight - Ticker.STAGE_H * s) / 2) * dpr) / dpr;
     stage.style.transform = `translate(${x}px, ${y}px) scale(${s})`;
     renderer.setScale(s);
+    floats.setScale(s);
     updateHud();
   }
 
@@ -144,6 +162,7 @@
       const state = Ticker.normalize(s);
       document.body.style.background = state.style.keyColor;
       renderer.setState(state);
+      floats.setState(state);
     },
     (m, ok) => { mode = m; connected = ok; updateHud(); }
   );
@@ -154,6 +173,7 @@
     const state = Ticker.defaultState();
     document.body.style.background = state.style.keyColor;
     renderer.setState(state);
+    floats.setState(state);
   }
   // 웹폰트가 늦게 로드되면 문구 폭이 달라지므로 다시 잰다
   if (document.fonts) {

@@ -12,6 +12,7 @@
 
   /* ---------- 디자인 폼 정의 ---------- */
   const SPEEDS = [[60, '느림'], [120, '보통'], [180, '빠름'], [240, '매우 빠름']];
+  const WEIGHTS = [[400, '보통'], [500, '중간'], [600, '세미볼드'], [700, '볼드'], [800, '엑스트라볼드'], [900, '블랙']];
   const GROUPS = [
     { title: '배치', open: true, fields: [
       { key: 'position', label: '위치', type: 'select', options: [['bottom', '하단'], ['top', '상단']] },
@@ -38,7 +39,7 @@
       { key: 'fontFamily', label: '글꼴', type: 'select', options: [['pretendard', 'Pretendard'], ['malgun', '맑은 고딕'], ['custom', '직접 입력 (PC 설치 글꼴)']] },
       { key: 'customFont', label: '글꼴 이름', type: 'text', placeholder: '예: 나눔스퀘어' },
       { key: 'fontSize', label: '글자 크기', type: 'range', min: 16, max: 140, unit: 'px' },
-      { key: 'fontWeight', label: '굵기', type: 'select', options: [[400, '보통'], [500, '중간'], [600, '세미볼드'], [700, '볼드'], [800, '엑스트라볼드'], [900, '블랙']] },
+      { key: 'fontWeight', label: '굵기', type: 'select', options: WEIGHTS },
       { key: 'separator', label: '구분 기호', type: 'text', placeholder: '•' },
       { key: 'gap', label: '문구 사이 간격', type: 'range', min: 8, max: 300, unit: 'px' },
     ] },
@@ -65,6 +66,21 @@
     { title: '고급: 사용자 CSS', open: false, fields: [
       { key: 'customCss', type: 'css', wide: true },
     ] },
+  ];
+  const FLOAT_FIELDS = [
+    { key: 'floatMotion', label: '움직임', type: 'select', options: [['rise', '떠오르기 (아래 → 위)'], ['drift', '둥실 떠다니기'], ['fly', '흘러가기 (오른쪽 → 왼쪽)']] },
+    { key: 'floatArea', label: '표시 영역', type: 'select', options: [['full', '화면 전체 (티커 제외)'], ['upper', '위쪽 절반'], ['lower', '아래쪽 절반']] },
+    { key: 'floatShape', label: '모양', type: 'select', options: [['bubble', '말풍선'], ['pill', '알약'], ['card', '카드']] },
+    { key: 'floatColorMode', label: '색 구성', type: 'select', options: [['single', '단색'], ['rainbow', '파스텔 랜덤']] },
+    { key: 'floatBg', label: '말풍선 배경 (단색)', type: 'color' },
+    { key: 'floatColor', label: '글자 (단색)', type: 'color' },
+    { key: 'floatFontSize', label: '글자 크기', type: 'range', min: 20, max: 100, unit: 'px' },
+    { key: 'floatWeight', label: '굵기', type: 'select', options: WEIGHTS },
+    { key: 'floatMax', label: '동시에 떠 있는 개수', type: 'range', min: 1, max: 12, unit: '개' },
+    { key: 'floatInterval', label: '새 멘트 등장 간격', type: 'range', min: 0.5, max: 10, step: 0.5, unit: '초' },
+    { key: 'floatSpeed', label: '움직이는 속도', type: 'range', min: 10, max: 200, step: 5, unit: 'px/초' },
+    { key: 'floatLife', label: '머무는 시간 (둥실 떠다니기)', type: 'range', min: 3, max: 30, unit: '초' },
+    { key: 'floatMaxWidth', label: '말풍선 최대 너비', type: 'range', min: 240, max: 1400, step: 20, unit: 'px', wide: true },
   ];
   const inputs = {}; // key → { el, out, sync() }
 
@@ -124,6 +140,7 @@
       if (!own || !document.activeElement || !document.activeElement.closest('#list')) renderList();
     }
     renderLive();
+    renderFloats();
     syncStyleForm();
   }
 
@@ -286,6 +303,57 @@
       det.append(sum, body);
       for (const f of g.fields) body.append(buildField(f));
       root.append(det);
+    }
+    for (const f of FLOAT_FIELDS) $('#floatFields').append(buildField(f));
+  }
+
+  /* ---------- 떠다니는 멘트 ---------- */
+  function setFloats(mutate, msg) {
+    return publish(() => {
+      const f = clone(live.floats);
+      mutate(f);
+      return withLive({ floats: f });
+    }).then((ok) => { if (ok && msg) toast(msg); return ok; });
+  }
+
+  function renderFloats() {
+    const btn = $('#toggleFloats');
+    btn.textContent = live.floats.visible ? '표시 중' : '숨김';
+    btn.className = 'btn small ' + (live.floats.visible ? 'onair' : 'offair');
+    btn.title = live.floats.visible ? '눌러서 멘트 숨기기' : '눌러서 멘트 표시';
+
+    const list = $('#floatList');
+    if (list.contains(document.activeElement)) return; // 수정 중인 칸은 건드리지 않는다
+    list.replaceChildren();
+    for (const m of live.floats.items) {
+      const li = document.createElement('li');
+      li.className = 'msg' + (m.on ? '' : ' off');
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.checked = m.on;
+      cb.title = '띄우기에 포함';
+      cb.addEventListener('change', () => setFloats((f) => {
+        const it = f.items.find((i) => i.id === m.id);
+        if (it) it.on = cb.checked;
+      }));
+      const tx = document.createElement('input');
+      tx.type = 'text';
+      tx.maxLength = 80;
+      tx.value = m.text;
+      tx.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.isComposing) tx.blur(); });
+      tx.addEventListener('change', () => {
+        const text = tx.value.trim();
+        if (!text) { tx.value = m.text; return; }
+        setFloats((f) => {
+          const it = f.items.find((i) => i.id === m.id);
+          if (it) it.text = text;
+        }, '멘트를 수정했습니다');
+      });
+      const del = iconBtn('✕', '삭제', false, () => setFloats((f) => {
+        f.items = f.items.filter((i) => i.id !== m.id);
+      }));
+      li.append(cb, tx, del);
+      list.append(li);
     }
   }
 
@@ -770,9 +838,25 @@
   });
 
   buildPresets();
+  $('#floatForm').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const text = $('#floatText').value.trim();
+    if (!text) { $('#floatText').focus(); return; }
+    setFloats((f) => { f.items.push({ id: Ticker.uid(), text, on: true }); },
+      live.floats.visible ? '멘트를 띄웠습니다' : '멘트를 추가했습니다 (지금은 숨김 상태)')
+      .then((ok) => { if (ok) $('#floatText').value = ''; });
+  });
+  $('#toggleFloats').addEventListener('click', () => setFloats((f) => { f.visible = !f.visible; }));
+  $('#floatClear').addEventListener('click', () => {
+    if (!live.floats.items.length) return;
+    if (!confirm('떠다니는 멘트를 모두 삭제할까요?')) return;
+    setFloats((f) => { f.items = []; }, '멘트를 모두 삭제했습니다');
+  });
+
   buildStyleForm();
   renderList();
   renderLive();
+  renderFloats();
   syncStyleForm();
   bus.start().then(loadDesigns);
 })();

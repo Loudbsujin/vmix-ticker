@@ -33,6 +33,7 @@
         { id: uid(), text: '체험 접수는 1층 안내데스크에서 가능합니다', on: true },
       ],
       emergency: { active: false, text: '' },
+      floats: { visible: true, items: [] },
       style: {
         preset: 'midnight',
         ...pickColors(PRESETS.midnight),
@@ -67,6 +68,19 @@
         emergencyLabelBg: '#ffffff',
         emergencyLabelColor: '#b91c1c',
         customCss: '',
+        floatMotion: 'rise',
+        floatArea: 'full',
+        floatMax: 5,
+        floatInterval: 2.5,
+        floatSpeed: 60,
+        floatLife: 8,
+        floatFontSize: 40,
+        floatWeight: 700,
+        floatMaxWidth: 640,
+        floatShape: 'bubble',
+        floatColorMode: 'single',
+        floatBg: '#ffffff',
+        floatColor: '#111827',
       },
     };
   }
@@ -87,6 +101,14 @@
             .map((m) => ({ id: m.id || uid(), text: m.text, on: m.on !== false }))
         : d.messages,
       emergency: { ...d.emergency, ...(s.emergency || {}) },
+      floats: {
+        visible: s.floats ? !!s.floats.visible : d.floats.visible,
+        items: s.floats && Array.isArray(s.floats.items)
+          ? s.floats.items
+              .filter((m) => m && typeof m.text === 'string')
+              .map((m) => ({ id: m.id || uid(), text: m.text, on: m.on !== false }))
+          : [],
+      },
       style: { ...d.style, ...(s.style || {}) },
     };
   }
@@ -393,5 +415,204 @@
     }
   }
 
-  global.Ticker = { STAGE_W, STAGE_H, PRESETS, uid, defaultState, normalize, pickColors, createBus, Renderer };
+  /* ---------- 떠다니는 멘트 ----------
+   * 등록된 멘트를 차례로 말풍선으로 띄운다. 새로 추가된 멘트는 대기열 맨 앞에 넣어 바로 보여 주고,
+   * 위치는 이미 떠 있는 말풍선과 가장 멀리 떨어진 후보를 골라 겹침을 줄인다. */
+  const PASTELS = [
+    ['#fde68a', '#422006'], ['#bbf7d0', '#052e16'], ['#bfdbfe', '#172554'], ['#fbcfe8', '#500724'],
+    ['#ddd6fe', '#2e1065'], ['#fed7aa', '#431407'], ['#a5f3fc', '#083344'], ['#fecaca', '#450a0a'],
+  ];
+  const FADE_IN = 0.6;
+  const FADE_OUT = 0.8;
+
+  class FloatLayer {
+    constructor(stage) {
+      this.stage = stage;
+      this.layer = document.createElement('div');
+      this.layer.className = 'floats';
+      stage.prepend(this.layer); // 티커 바 뒤로 지나가도록 맨 앞(아래층)에 둔다
+      this.scale = 1;
+      this.state = null;
+      this.bubbles = [];
+      this.queue = [];
+      this.seen = new Set();
+      this.cursor = 0;
+      this.colorIndex = 0;
+      this.sinceSpawn = Infinity;
+      this._last = 0;
+      this._loop = this._loop.bind(this);
+      requestAnimationFrame(this._loop);
+    }
+
+    setScale(scale) {
+      this.scale = scale;
+    }
+
+    setState(s) {
+      const first = !this.state;
+      this.state = s;
+      const st = s.style;
+      const v = (k, val) => this.layer.style.setProperty(k, val);
+      v('--f-fs', st.floatFontSize + 'px');
+      v('--f-fw', String(st.floatWeight));
+      v('--f-maxw', st.floatMaxWidth + 'px');
+      v('--font', fontStack(st));
+      this.layer.dataset.shape = st.floatShape;
+
+      for (const it of s.floats.items) {
+        if (this.seen.has(it.id)) continue;
+        this.seen.add(it.id);
+        if (!first && it.on && it.text.trim()) this.queue.push(it.id);
+      }
+      for (const b of this.bubbles) {
+        const it = s.floats.items.find((i) => i.id === b.id);
+        if (!it || !it.on || !it.text.trim()) b.dying = true;
+        else if (it.text !== b.text) { b.text = it.text; b.el.firstChild.textContent = it.text; }
+        if (st.floatColorMode === 'single') this._paint(b.el, null);
+      }
+      if (!this._active()) for (const b of this.bubbles) b.dying = true;
+    }
+
+    _active() {
+      const s = this.state;
+      return !!s && s.floats.visible && !s.emergency.active;
+    }
+
+    _items() {
+      return this.state.floats.items.filter((i) => i.on && i.text.trim());
+    }
+
+    _next() {
+      const items = this._items();
+      if (!items.length) return null;
+      while (this.queue.length) {
+        const it = items.find((i) => i.id === this.queue[0]);
+        this.queue.shift();
+        if (it) return it;
+      }
+      for (let k = 0; k < items.length; k++) {
+        const it = items[this.cursor++ % items.length];
+        if (!this.bubbles.some((b) => b.id === it.id && !b.dying)) return it;
+      }
+      return null;
+    }
+
+    // 티커 바를 피한 표시 영역 (1920×1080 기준 좌표)
+    _area() {
+      const st = this.state.style;
+      const bar = st.marginY + st.barHeight + 30;
+      let top = 50;
+      let bottom = STAGE_H - 50;
+      if (this.state.visible) {
+        if (st.position === 'top') top = Math.max(top, bar);
+        else bottom = Math.min(bottom, STAGE_H - bar);
+      }
+      const mid = (top + bottom) / 2;
+      if (st.floatArea === 'upper') bottom = mid;
+      if (st.floatArea === 'lower') top = mid;
+      return { left: 60, right: STAGE_W - 60, top, bottom };
+    }
+
+    _paint(el, colors) {
+      const st = this.state.style;
+      el.style.setProperty('--f-bg', colors ? colors[0] : st.floatBg);
+      el.style.setProperty('--f-color', colors ? colors[1] : st.floatColor);
+    }
+
+    _spawn(it) {
+      const st = this.state.style;
+      const el = document.createElement('div');
+      el.className = 'float';
+      const span = document.createElement('span');
+      span.textContent = it.text;
+      el.append(span);
+      this._paint(el, st.floatColorMode === 'rainbow' ? PASTELS[this.colorIndex++ % PASTELS.length] : null);
+      el.style.opacity = '0';
+      this.layer.appendChild(el);
+      const r = el.getBoundingClientRect();
+      const w = r.width / this.scale;
+      const h = r.height / this.scale;
+      const a = this._area();
+      const maxX = Math.max(a.left, a.right - w);
+      const maxY = Math.max(a.top, a.bottom - h);
+      const rand = (lo, hi) => lo + Math.random() * (hi - lo);
+
+      // 후보 위치 중 기존 말풍선과 가장 먼 곳
+      const candidate = () => {
+        if (st.floatMotion === 'rise') return { x: rand(a.left, maxX), y: maxY };
+        if (st.floatMotion === 'fly') return { x: STAGE_W + 20, y: rand(a.top, maxY) };
+        return { x: rand(a.left, maxX), y: rand(a.top, maxY) };
+      };
+      let best = candidate();
+      let bestD = -1;
+      for (let i = 0; i < 12; i++) {
+        const c = i ? candidate() : best;
+        let d = Infinity;
+        for (const b of this.bubbles) d = Math.min(d, Math.hypot(b.x - c.x, (b.y - c.y) * 1.6));
+        if (d > bestD) { bestD = d; best = c; }
+      }
+      const angle = Math.random() * Math.PI * 2;
+      this.bubbles.push({
+        id: it.id, text: it.text, el, w, h, x: best.x, y: best.y, x0: best.x,
+        vx: Math.cos(angle), vy: Math.sin(angle) * 0.6,
+        age: 0, phase: Math.random() * Math.PI * 2, dying: false, dieAt: 0,
+      });
+    }
+
+    _step(dt) {
+      const st = this.state.style;
+      const a = this._area();
+      const speed = st.floatSpeed;
+      const alive = this.bubbles.filter((b) => !b.dying).length;
+
+      if (this._active()) {
+        this.sinceSpawn += dt;
+        const urgent = this.queue.length > 0 && alive < st.floatMax + 2;
+        if (urgent || (this.sinceSpawn >= st.floatInterval && alive < st.floatMax)) {
+          const it = this._next();
+          if (it) { this._spawn(it); this.sinceSpawn = 0; }
+        }
+      }
+
+      for (const b of this.bubbles) {
+        b.age += dt;
+        if (st.floatMotion === 'rise') {
+          b.y -= speed * dt;
+          b.x = b.x0 + Math.sin(b.age * 0.9 + b.phase) * 28;
+          if (b.y < a.top + 40) b.dying = true;
+        } else if (st.floatMotion === 'fly') {
+          b.x -= speed * 2 * dt;
+          if (b.x + b.w < -20) { b.dying = true; b.dieAt = -FADE_OUT; }
+        } else {
+          b.x += b.vx * speed * 0.35 * dt;
+          b.y += (b.vy * speed * 0.35 + Math.sin(b.age * 1.3 + b.phase) * 14) * dt;
+          if (b.x < a.left || b.x + b.w > a.right) b.vx = b.x < a.left ? Math.abs(b.vx) : -Math.abs(b.vx);
+          if (b.y < a.top || b.y + b.h > a.bottom) b.vy = b.y < a.top ? Math.abs(b.vy) : -Math.abs(b.vy);
+          if (b.age > st.floatLife) b.dying = true;
+        }
+        if (b.dying && !b.dieAt) b.dieAt = b.age;
+
+        const fadeIn = Math.min(1, b.age / FADE_IN);
+        const fadeOut = b.dying ? Math.max(0, 1 - (b.age - b.dieAt) / FADE_OUT) : 1;
+        const op = Math.min(fadeIn, fadeOut);
+        const sc = 0.85 + 0.15 * fadeIn;
+        b.el.style.opacity = op.toFixed(3);
+        b.el.style.transform = `translate3d(${b.x}px,${b.y}px,0) scale(${sc.toFixed(3)})`;
+        b.gone = b.dying && fadeOut <= 0;
+      }
+      this.bubbles = this.bubbles.filter((b) => {
+        if (b.gone) b.el.remove();
+        return !b.gone;
+      });
+    }
+
+    _loop(now) {
+      requestAnimationFrame(this._loop);
+      const dt = this._last ? Math.min(0.1, (now - this._last) / 1000) : 0;
+      this._last = now;
+      if (this.state) this._step(dt);
+    }
+  }
+
+  global.Ticker = { STAGE_W, STAGE_H, PRESETS, uid, defaultState, normalize, pickColors, createBus, Renderer, FloatLayer };
 })(window);

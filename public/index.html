@@ -49,6 +49,26 @@
         <b>즉시 교체</b>: 화면을 비우고 처음부터 다시 흐릅니다 (<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Enter</kbd>).</p>
     </div>
 
+    <div class="card" id="floatCard">
+      <div class="card-head">
+        <h2>떠다니는 멘트</h2>
+        <button id="toggleFloats" class="btn offair small">숨김</button>
+      </div>
+      <p class="hint">멘트를 쓰고 <kbd>Enter</kbd>를 누르면 바로 화면에 떠오릅니다. 등록된 멘트는 돌아가며 계속 떠다니고, 티커 영역은 피해서 표시됩니다.</p>
+      <form id="floatForm" class="design-save">
+        <input id="floatText" type="text" maxlength="80" placeholder="예: 오늘 함께해 주셔서 고마워요 💛" aria-label="떠다니는 멘트">
+        <button class="btn primary" type="submit">띄우기</button>
+      </form>
+      <ol id="floatList" class="msg-list float-list"></ol>
+      <div class="apply-row">
+        <button id="floatClear" class="btn ghost">멘트 전체 삭제</button>
+      </div>
+      <details class="group">
+        <summary>모양·움직임</summary>
+        <div id="floatFields" class="group-body"></div>
+      </details>
+    </div>
+
     <div class="card emergency-card" id="emergencyCard">
       <div class="card-head">
         <h2>긴급 공지</h2>

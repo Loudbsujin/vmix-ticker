@@ -167,6 +167,10 @@ select { height: 36px; padding: 0 8px; }
 .design .btn { min-height: 32px; padding: 0 10px; font-size: 13px; }
 @media (max-width: 560px) { .design-save { flex-direction: column; } }
 
+/* 떠다니는 멘트 */
+.btn.small { min-height: 32px; padding: 0 12px; font-size: 13px; }
+.float-list { margin-top: 10px; }
+
 /* 사용자 CSS */
 .css-box { font-family: Consolas, 'D2Coding', monospace; font-size: 13px; line-height: 1.5; tab-size: 2; }
 .hint code { color: var(--text); background: var(--panel-2); padding: 0 4px; border-radius: 4px; }
