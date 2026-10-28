@@ -64,6 +64,16 @@
 
   <section class="col">
     <div class="card">
+      <div class="card-head"><h2>내 디자인</h2></div>
+      <p class="hint">아래 디자인 설정 전체(색·글꼴·배치·배경 이미지·로고·CSS)를 이름 붙여 저장하고, 누르면 바로 바뀝니다.</p>
+      <form id="saveDesignForm" class="design-save">
+        <input id="designName" type="text" placeholder="예: 4·16 청소년문화제" maxlength="40" aria-label="디자인 이름">
+        <button class="btn primary" type="submit">현재 디자인 저장</button>
+      </form>
+      <ul id="designList" class="design-list"></ul>
+    </div>
+
+    <div class="card">
       <div class="card-head"><h2>디자인</h2></div>
       <div class="field-label">컬러 프리셋</div>
       <div id="presets" class="presets"></div>

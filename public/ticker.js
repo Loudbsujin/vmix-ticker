@@ -42,7 +42,10 @@
         marginY: 0,
         radius: 0,
         keyColor: '#00ff00',
+        barImage: '',
+        barImageFit: 'cover',
         labelShow: true,
+        labelFill: true,
         labelText: '행사 안내',
         labelShape: 'slant',
         labelFontSize: 38,
@@ -63,6 +66,7 @@
         emergencyTextColor: '#ffffff',
         emergencyLabelBg: '#ffffff',
         emergencyLabelColor: '#b91c1c',
+        customCss: '',
       },
     };
   }
@@ -187,8 +191,9 @@
    * 쓰므로 '다음 바퀴부터 반영'이 흐름 끊김 없이 자연스럽게 된다. */
   const LAYOUT_KEYS = [
     'barHeight', 'marginX', 'fontSize', 'fontWeight', 'fontFamily', 'customFont', 'gap',
-    'labelShow', 'labelText', 'labelShape', 'labelFontSize', 'logo', 'logoHeight', 'emergencyLabel',
+    'labelShow', 'labelText', 'labelShape', 'labelFontSize', 'logo', 'logoHeight', 'emergencyLabel', 'customCss',
   ];
+  const IMAGE_FIT = { cover: 'cover', contain: 'contain', stretch: '100% 100%' };
 
   class Renderer {
     constructor(stage) {
@@ -259,11 +264,23 @@
       v('--label-color', emergency ? st.emergencyLabelColor : st.labelColor);
       v('--sep-color', emergency ? st.emergencyTextColor : st.sepColor);
 
+      // 큰 data URL을 매번 다시 넣지 않도록 바뀔 때만 설정
+      const barImg = !emergency && st.barImage ? `url("${st.barImage}")` : 'none';
+      if (barImg !== this._barImg) { v('--bar-img', barImg); this._barImg = barImg; }
+      v('--bar-img-size', IMAGE_FIT[st.barImageFit] || 'cover');
+
+      if (!this._css) {
+        this._css = document.createElement('style');
+        document.head.appendChild(this._css);
+      }
+      if (this._css.textContent !== st.customCss) this._css.textContent = st.customCss;
+
       this.stage.classList.toggle('emergency', emergency);
       this.bar.classList.toggle('top', st.position === 'top');
       this.bar.classList.toggle('accent', !!st.accentLine);
       this.viewport.classList.toggle('fade', !!st.edgeFade);
       this.label.className = 'label shape-' + (st.labelShape || 'rect');
+      this.label.classList.toggle('nofill', !emergency && !st.labelFill);
 
       const showLogo = !emergency && !!st.logo;
       const text = emergency ? st.emergencyLabel : st.labelText;

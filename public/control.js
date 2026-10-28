@@ -21,13 +21,18 @@
       { key: 'marginX', label: '좌우 여백', type: 'range', min: 0, max: 240, unit: 'px' },
       { key: 'marginY', label: '상하 여백', type: 'range', min: 0, max: 240, unit: 'px' },
     ] },
+    { title: '바 배경 이미지', open: false, fields: [
+      { key: 'barImage', label: '피그마·포토샵에서 만든 바 그래픽 (PNG/JPG, 예: 1920×96)', type: 'image', maxW: 3840, maxH: 480, fitButton: true, wide: true },
+      { key: 'barImageFit', label: '이미지 맞춤', type: 'select', options: [['cover', '채우기 (넘치는 부분 잘림)'], ['stretch', '늘이기 (비율 무시)'], ['contain', '전체 보이기 (여백 생김)']] },
+    ] },
     { title: '왼쪽 표제', open: true, fields: [
       { key: 'labelShow', label: '표제 영역 표시', type: 'check' },
       { key: 'labelShape', label: '모양', type: 'select', options: [['slant', '사선'], ['rect', '사각'], ['pill', '라운드']] },
+      { key: 'labelFill', label: '표제 배경색 채우기 (끄면 바 배경 이미지가 보임)', type: 'check', wide: true },
       { key: 'labelText', label: '표제 문구', type: 'text', wide: true },
       { key: 'labelFontSize', label: '표제 글자 크기', type: 'range', min: 16, max: 120, unit: 'px' },
       { key: 'logoHeight', label: '로고 높이', type: 'range', min: 16, max: 180, unit: 'px' },
-      { key: 'logo', label: '로고 이미지 (PNG 투명 배경 권장)', type: 'logo', wide: true },
+      { key: 'logo', label: '로고 이미지 (PNG 투명 배경 권장)', type: 'image', maxW: 1200, maxH: 360, wide: true },
     ] },
     { title: '글자', open: true, fields: [
       { key: 'fontFamily', label: '글꼴', type: 'select', options: [['pretendard', 'Pretendard'], ['malgun', '맑은 고딕'], ['custom', '직접 입력 (PC 설치 글꼴)']] },
@@ -56,6 +61,9 @@
       { key: 'emergencyTextColor', label: '문구', type: 'color' },
       { key: 'emergencyLabelBg', label: '표제 배경', type: 'color' },
       { key: 'emergencyLabelColor', label: '표제 글자', type: 'color' },
+    ] },
+    { title: '고급: 사용자 CSS', open: false, fields: [
+      { key: 'customCss', type: 'css', wide: true },
     ] },
   ];
   const inputs = {}; // key → { el, out, sync() }
@@ -290,7 +298,7 @@
 
     if (f.type === 'check') {
       const wrap = document.createElement('label');
-      wrap.className = 'field check';
+      wrap.className = 'field check' + (f.wide ? ' wide' : '');
       const el = document.createElement('input');
       el.type = 'checkbox';
       el.addEventListener('change', () => setStyle({ [f.key]: el.checked }));
@@ -372,11 +380,12 @@
       return wrap;
     }
 
-    if (f.type === 'logo') {
+    if (f.type === 'image') {
       const row = document.createElement('div');
       row.className = 'logo-row';
       const img = document.createElement('img');
-      img.alt = '로고 미리보기';
+      img.alt = '이미지 미리보기';
+      if (f.fitButton) img.className = 'wide';
       const pick = document.createElement('label');
       pick.className = 'btn';
       pick.textContent = '이미지 선택';
@@ -388,32 +397,89 @@
       const clear = document.createElement('button');
       clear.className = 'btn ghost';
       clear.textContent = '제거';
-      clear.addEventListener('click', () => { setStyle({ logo: '' }); syncStyleForm(); });
+      clear.addEventListener('click', () => { setStyle({ [f.key]: '' }); syncStyleForm(); });
       file.addEventListener('change', async () => {
         const f0 = file.files[0];
         file.value = '';
         if (!f0) return;
         try {
-          setStyle({ logo: await shrinkImage(f0) });
+          setStyle({ [f.key]: await shrinkImage(f0, f.maxW, f.maxH) });
           syncStyleForm();
         } catch (e) {
           toast('이미지를 읽지 못했습니다', true);
         }
       });
       row.append(img, pick, clear);
+      // 바 높이를 이미지 비율에 맞춰 이미지가 잘리거나 늘어나지 않게 한다
+      let fit;
+      if (f.fitButton) {
+        fit = document.createElement('button');
+        fit.className = 'btn ghost';
+        fit.textContent = '바 높이를 이미지 비율에 맞추기';
+        fit.addEventListener('click', () => {
+          const barW = Ticker.STAGE_W - 2 * live.style.marginX;
+          const h = Math.round(barW * img.naturalHeight / img.naturalWidth);
+          if (!h) return;
+          setStyle({ barHeight: Math.max(24, Math.min(400, h)) });
+          syncStyleForm();
+          toast(`바 높이를 ${h}px로 맞췄습니다`);
+        });
+        row.append(fit);
+      }
       wrap.append(row);
       inputs[f.key] = { el: file, sync: () => {
-        img.hidden = !st().logo;
-        clear.hidden = !st().logo;
-        if (st().logo) img.src = st().logo;
+        const has = !!st()[f.key];
+        img.hidden = !has;
+        clear.hidden = !has;
+        if (fit) fit.hidden = !has;
+        if (has && img.getAttribute('src') !== st()[f.key]) img.src = st()[f.key];
+      } };
+      return wrap;
+    }
+
+    if (f.type === 'css') {
+      const hint = document.createElement('p');
+      hint.className = 'hint';
+      hint.innerHTML = '송출 화면에 직접 스타일을 덧씌웁니다. 비워 두면 영향 없음. 대상: ' +
+        '<code>.bar</code> 바 · <code>.label</code> 표제 · <code>.item</code> 문구 · <code>.sep</code> 구분 기호 · <code>.logo</code> 로고';
+      const el = document.createElement('textarea');
+      el.className = 'css-box';
+      el.rows = 6;
+      el.spellcheck = false;
+      el.placeholder = '/* 예: 문구에 그림자 */\n.item { text-shadow: 0 2px 6px rgba(0,0,0,.6); }\n\n/* 바에 그라데이션 */\n.bar { background: linear-gradient(90deg, #1e1b4b, #4c1d95); }';
+      const actions = document.createElement('div');
+      actions.className = 'css-actions';
+      const apply = document.createElement('button');
+      apply.className = 'btn primary';
+      apply.textContent = 'CSS 적용';
+      const state = document.createElement('span');
+      state.className = 'state';
+      const mark = () => {
+        const changed = el.value !== st()[f.key];
+        state.textContent = changed ? '적용 안 된 변경 있음' : (st()[f.key].trim() ? '적용됨' : '');
+        state.classList.toggle('dirty', changed);
+      };
+      el.addEventListener('input', mark);
+      // 입력 도중의 깨진 CSS가 송출되지 않도록 버튼으로만 반영
+      apply.addEventListener('click', () => { setStyle({ [f.key]: el.value }); mark(); toast('CSS를 적용했습니다'); });
+      el.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); e.stopPropagation(); apply.click(); }
+      });
+      actions.append(apply, state);
+      wrap.querySelector('.field-label').remove();
+      wrap.append(hint, el, actions);
+      inputs[f.key] = { el, sync: () => {
+        if (state.classList.contains('dirty')) { mark(); return; }
+        el.value = st()[f.key];
+        mark();
       } };
       return wrap;
     }
     return wrap;
   }
 
-  // 로고는 상태에 data URL로 들어가므로 높이 360px 이하로 줄여 PNG로 저장
-  function shrinkImage(file) {
+  // 이미지는 상태에 data URL로 들어가므로 최대 크기 안으로 줄여 PNG로 저장
+  function shrinkImage(file, maxW, maxH) {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onerror = reject;
@@ -422,7 +488,7 @@
         const img = new Image();
         img.onerror = reject;
         img.onload = () => {
-          const k = Math.min(1, 360 / img.naturalHeight);
+          const k = Math.min(1, maxW / img.naturalWidth, maxH / img.naturalHeight);
           const c = document.createElement('canvas');
           c.width = Math.round(img.naturalWidth * k);
           c.height = Math.round(img.naturalHeight * k);
@@ -445,9 +511,132 @@
     markPreset();
   }
 
+  /* ---------- 내 디자인 ----------
+   * 서버 모드: data/designs.json (모든 기기 공유) · 로컬 모드: 이 브라우저 localStorage */
+  const DESIGNS_KEY = 'vmixTicker.designs.v1';
+  let designs = [];
+
+  async function loadDesigns() {
+    if (bus.mode === 'server') {
+      try {
+        const list = await (await fetch('api/designs', { cache: 'no-store' })).json();
+        designs = Array.isArray(list) ? list : [];
+      } catch (e) {
+        designs = [];
+      }
+    } else {
+      try { designs = JSON.parse(localStorage.getItem(DESIGNS_KEY) || '[]'); } catch (e) { designs = []; }
+    }
+    renderDesigns();
+  }
+
+  async function saveDesigns() {
+    if (bus.mode !== 'server') {
+      try {
+        localStorage.setItem(DESIGNS_KEY, JSON.stringify(designs));
+        return true;
+      } catch (e) {
+        toast('브라우저 저장 공간이 부족합니다. 큰 이미지가 든 디자인을 지우거나 서버 모드(run.bat)를 쓰세요.', true);
+        return false;
+      }
+    }
+    const put = () => fetch('api/designs', {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json', 'x-ticker-pin': encodeURIComponent(bus.pin) },
+      body: JSON.stringify(designs),
+    });
+    try {
+      let r = await put();
+      if (r.status === 401) {
+        const pin = prompt('이 서버는 PIN이 설정되어 있습니다. PIN을 입력하세요.');
+        if (!pin) return false;
+        bus.setPin(pin);
+        r = await put();
+      }
+      if (!r.ok) throw new Error(r.status === 401 ? 'PIN이 맞지 않습니다' : '서버 오류 ' + r.status);
+      return true;
+    } catch (e) {
+      toast('디자인 저장 실패: ' + e.message, true);
+      return false;
+    }
+  }
+
+  function renderDesigns() {
+    const list = $('#designList');
+    list.replaceChildren();
+    if (!designs.length) {
+      const li = document.createElement('li');
+      li.className = 'empty';
+      li.textContent = '저장한 디자인이 없습니다.';
+      list.append(li);
+      return;
+    }
+    designs.forEach((d, i) => {
+      const li = document.createElement('li');
+      li.className = 'design';
+      const sw = document.createElement('span');
+      sw.className = 'swatch';
+      for (const c of [d.style.barBg, d.style.labelBg, d.style.textColor]) {
+        const s = document.createElement('i');
+        s.style.background = c;
+        sw.append(s);
+      }
+      if (d.style.barImage) {
+        sw.style.background = `center / cover no-repeat url("${d.style.barImage}")`;
+        sw.replaceChildren();
+      }
+      const name = document.createElement('div');
+      name.className = 'name';
+      name.textContent = d.name;
+      const meta = document.createElement('small');
+      meta.textContent = new Date(d.savedAt).toLocaleString('ko-KR', { dateStyle: 'short', timeStyle: 'short' });
+      name.append(meta);
+
+      const apply = document.createElement('button');
+      apply.className = 'btn primary';
+      apply.textContent = '적용';
+      apply.addEventListener('click', () => {
+        // 예전에 저장한 디자인에 없는 항목은 기본값으로 채운다
+        setStyle({ ...Ticker.defaultState().style, ...clone(d.style) });
+        syncStyleForm();
+        toast(`'${d.name}' 디자인을 적용했습니다`);
+      });
+      const over = document.createElement('button');
+      over.className = 'btn';
+      over.textContent = '덮어쓰기';
+      over.title = '현재 디자인으로 덮어쓰기';
+      over.addEventListener('click', async () => {
+        if (!confirm(`'${d.name}'을(를) 현재 디자인으로 덮어쓸까요?`)) return;
+        designs[i] = { ...d, style: clone(live.style), savedAt: Date.now() };
+        if (await saveDesigns()) { renderDesigns(); toast('덮어썼습니다'); }
+      });
+      const del = iconBtn('✕', '삭제', false, async () => {
+        if (!confirm(`'${d.name}' 디자인을 삭제할까요?`)) return;
+        designs.splice(i, 1);
+        if (await saveDesigns()) renderDesigns(); else loadDesigns();
+      });
+      li.append(sw, name, apply, over, del);
+      list.append(li);
+    });
+  }
+
+  async function saveCurrentDesign(name) {
+    const existing = designs.findIndex((d) => d.name === name);
+    if (existing >= 0 && !confirm(`'${name}' 디자인이 이미 있습니다. 덮어쓸까요?`)) return;
+    const entry = { id: existing >= 0 ? designs[existing].id : Ticker.uid(), name, style: clone(live.style), savedAt: Date.now() };
+    if (existing >= 0) designs[existing] = entry; else designs.push(entry);
+    if (await saveDesigns()) {
+      renderDesigns();
+      $('#designName').value = '';
+      toast(`'${name}' 디자인을 저장했습니다`);
+    } else {
+      loadDesigns();
+    }
+  }
+
   /* ---------- 설정 파일 ---------- */
   function exportConfig() {
-    const data = { ...clone(live), messages: dirty ? clone(draft) : clone(live.messages) };
+    const data = { ...clone(live), messages: dirty ? clone(draft) : clone(live.messages), designs: clone(designs) };
     delete data.seq;
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const a = document.createElement('a');
@@ -461,8 +650,20 @@
 
   async function importConfig(file) {
     try {
-      const s = Ticker.normalize(JSON.parse(await file.text()));
-      if (!confirm('불러온 설정으로 문구와 디자인을 바꿔 바로 송출합니다. 계속할까요?')) return;
+      const raw = JSON.parse(await file.text());
+      const imported = Array.isArray(raw.designs) ? raw.designs.filter((d) => d && d.name && d.style) : [];
+      delete raw.designs;
+      const s = Ticker.normalize(raw);
+      if (!confirm('불러온 설정으로 문구와 디자인을 바꿔 바로 송출합니다.' +
+        (imported.length ? `\n저장된 디자인 ${imported.length}개도 '내 디자인'에 추가됩니다 (같은 이름은 교체).` : '') +
+        '\n계속할까요?')) return;
+      if (imported.length) {
+        for (const d of imported) {
+          const i = designs.findIndex((x) => x.name === d.name);
+          if (i >= 0) designs[i] = d; else designs.push(d);
+        }
+        if (await saveDesigns()) renderDesigns(); else loadDesigns();
+      }
       setDirty(false);
       await publish(() => ({
         ...s,
@@ -530,6 +731,12 @@
       .then(() => toast('일반 공지로 돌아갔습니다'));
   });
 
+  $('#saveDesignForm').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const name = $('#designName').value.trim();
+    if (!name) { toast('디자인 이름을 입력하세요', true); $('#designName').focus(); return; }
+    saveCurrentDesign(name);
+  });
   $('#exportCfg').addEventListener('click', exportConfig);
   $('#importCfg').addEventListener('change', (e) => {
     const f = e.target.files[0];
@@ -557,5 +764,5 @@
   renderList();
   renderLive();
   syncStyleForm();
-  bus.start();
+  bus.start().then(loadDesigns);
 })();

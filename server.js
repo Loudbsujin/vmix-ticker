@@ -13,7 +13,8 @@ const PIN = process.env.TICKER_PIN || '';
 const PUBLIC_DIR = path.join(__dirname, 'public');
 const DATA_DIR = path.join(__dirname, 'data');
 const STATE_FILE = path.join(DATA_DIR, 'state.json');
-const MAX_BODY = 8 * 1024 * 1024;
+const DESIGNS_FILE = path.join(DATA_DIR, 'designs.json');
+const MAX_BODY = 32 * 1024 * 1024;
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -106,6 +107,28 @@ async function handleApi(req, res, pathname) {
     clients.add(res);
     req.on('close', () => clients.delete(res));
     return;
+  }
+
+  // 저장한 디자인 목록: 이미지가 들어 있어 커질 수 있으므로 상태와 따로 보관한다
+  if (pathname === '/api/designs' && req.method === 'GET') {
+    return fs.readFile(DESIGNS_FILE, 'utf8', (err, text) => {
+      res.writeHead(200, { 'content-type': MIME['.json'], 'cache-control': 'no-store' });
+      res.end(err ? '[]' : text);
+    });
+  }
+
+  if (pathname === '/api/designs' && req.method === 'PUT') {
+    if (PIN && decodeURIComponent(req.headers['x-ticker-pin'] || '') !== PIN) return sendJson(res, 401, { error: 'pin' });
+    let list;
+    try {
+      list = JSON.parse(await readBody(req));
+    } catch (e) {
+      return sendJson(res, 400, { error: 'bad body' });
+    }
+    if (!Array.isArray(list)) return sendJson(res, 400, { error: 'bad designs' });
+    await fs.promises.mkdir(DATA_DIR, { recursive: true });
+    await fs.promises.writeFile(DESIGNS_FILE, JSON.stringify(list));
+    return sendJson(res, 200, list);
   }
 
   if (pathname === '/api/info') return sendJson(res, 200, { urls: lanUrls(), pin: !!PIN });

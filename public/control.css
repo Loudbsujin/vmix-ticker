@@ -153,6 +153,27 @@ select { height: 36px; padding: 0 8px; }
 .logo-row { display: flex; gap: 8px; align-items: center; }
 .logo-row img { height: 36px; max-width: 120px; object-fit: contain; background: repeating-conic-gradient(#2a3140 0 25%, #1b202b 0 50%) 0 0 / 12px 12px; border-radius: 6px; }
 
+.logo-row { flex-wrap: wrap; }
+.logo-row img.wide { height: 36px; max-width: 220px; }
+
+/* 내 디자인 */
+.design-save { display: flex; gap: 8px; }
+.design-save input { flex: 1; min-width: 0; height: 38px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--text); font: inherit; }
+.design-list { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.design { display: flex; align-items: center; gap: 8px; padding: 6px 6px 6px 8px; border-radius: 10px; background: var(--panel-2); }
+.design .swatch { width: 34px; height: 22px; flex: none; }
+.design .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.design .name small { display: block; font-weight: 400; font-size: 11px; color: var(--muted); }
+.design .btn { min-height: 32px; padding: 0 10px; font-size: 13px; }
+@media (max-width: 560px) { .design-save { flex-direction: column; } }
+
+/* 사용자 CSS */
+.css-box { font-family: Consolas, 'D2Coding', monospace; font-size: 13px; line-height: 1.5; tab-size: 2; }
+.hint code { color: var(--text); background: var(--panel-2); padding: 0 4px; border-radius: 4px; }
+.css-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.css-actions .state { font-size: 12px; color: var(--muted); }
+.css-actions .state.dirty { color: #fde68a; }
+
 .toast {
   position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 20;
   padding: 10px 16px; border-radius: 10px; background: #f3f4f6; color: #111827; font-weight: 600; font-size: 14px;

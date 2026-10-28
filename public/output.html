@@ -19,7 +19,9 @@
   .bar {
     position: absolute; left: var(--mx); right: var(--mx); bottom: var(--my);
     height: var(--bar-h); display: flex; align-items: stretch;
-    background: var(--bar-bg); border-radius: var(--radius); overflow: hidden;
+    background-color: var(--bar-bg); border-radius: var(--radius); overflow: hidden;
+    background-image: var(--bar-img, none); background-size: var(--bar-img-size, cover);
+    background-position: center; background-repeat: no-repeat;
     transition: transform .6s cubic-bezier(.2, .8, .2, 1), background-color .3s;
   }
   .bar.top { top: var(--my); bottom: auto; }
@@ -39,6 +41,7 @@
     transition: background-color .3s, color .3s;
   }
   .label[hidden], .label [hidden] { display: none !important; }
+  .label.nofill { background: transparent; }
   .label.shape-slant {
     padding-right: calc(40px + var(--bar-h) * .38);
     clip-path: polygon(0 0, 100% 0, calc(100% - var(--bar-h) * .38) 100%, 0 100%);
