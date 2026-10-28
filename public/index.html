@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ticker 조작 화면</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<link rel="stylesheet" href="control.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand">
+    <span class="logo-mark"></span>
+    <div>
+      <h1>vMix Ticker</h1>
+      <p id="conn" class="conn">연결 확인 중…</p>
+    </div>
+  </div>
+  <div class="top-actions">
+    <button id="openOutput" class="btn">송출 창 열기</button>
+    <button id="toggleVisible" class="btn onair">표시 중</button>
+  </div>
+</header>
+
+<main class="layout">
+  <section class="col">
+    <div class="card preview-card">
+      <div class="card-head">
+        <h2>송출 미리보기</h2>
+        <span id="liveBadge" class="badge">LIVE</span>
+      </div>
+      <div class="preview"><iframe id="preview" src="output.html?preview=1" title="송출 미리보기" tabindex="-1"></iframe></div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <h2>공지 문구</h2>
+        <span id="dirtyBadge" class="badge warn" hidden>미반영 변경 있음</span>
+      </div>
+      <p class="hint">작성 후 <b>반영</b>을 눌러야 송출됩니다. 체크를 끄면 목록에 남긴 채 송출에서만 뺍니다. 입력칸에서 <kbd>Enter</kbd>로 다음 줄 추가.</p>
+      <ol id="list" class="msg-list"></ol>
+      <button id="addMsg" class="btn ghost add">+ 문구 추가</button>
+      <div class="apply-row">
+        <button id="applyNext" class="btn primary" title="Ctrl+Enter">다음 바퀴부터 반영</button>
+        <button id="applyNow" class="btn" title="Ctrl+Shift+Enter">즉시 교체</button>
+        <button id="revert" class="btn ghost" hidden>되돌리기</button>
+      </div>
+      <p class="hint small"><b>다음 바퀴부터</b>: 지금 흐르는 문구는 그대로 지나가고 새 문구가 이어서 들어옵니다 (<kbd>Ctrl</kbd>+<kbd>Enter</kbd>).
+        <b>즉시 교체</b>: 화면을 비우고 처음부터 다시 흐릅니다 (<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Enter</kbd>).</p>
+    </div>
+
+    <div class="card emergency-card" id="emergencyCard">
+      <div class="card-head">
+        <h2>긴급 공지</h2>
+        <span id="emBadge" class="badge danger" hidden>긴급 공지 송출 중</span>
+      </div>
+      <textarea id="emText" rows="2" placeholder="예: 지금 즉시 가까운 비상구로 이동해 주십시오"></textarea>
+      <div class="apply-row">
+        <button id="emOn" class="btn danger">긴급 공지 즉시 송출</button>
+        <button id="emOff" class="btn" disabled>긴급 해제 · 일반 공지로 복귀</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="col">
+    <div class="card">
+      <div class="card-head"><h2>디자인</h2></div>
+      <div class="field-label">컬러 프리셋</div>
+      <div id="presets" class="presets"></div>
+      <div id="styleForm"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><h2>설정 파일</h2></div>
+      <p class="hint">행사별 문구·디자인을 파일로 저장해 두었다가 현장에서 불러올 수 있습니다.</p>
+      <div class="apply-row">
+        <button id="exportCfg" class="btn">내보내기 (.json)</button>
+        <label class="btn">불러오기<input id="importCfg" type="file" accept="application/json,.json" hidden></label>
+        <button id="resetStyle" class="btn ghost">디자인 초기화</button>
+      </div>
+    </div>
+  </section>
+</main>
+
+<div id="toast" class="toast" hidden></div>
+<script src="ticker.js"></script>
+<script src="control.js"></script>
+</body>
+</html>

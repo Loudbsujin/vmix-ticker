@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ticker 송출 화면</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #00ff00; }
+  body.idle { cursor: none; }
+
+  .stage {
+    position: absolute; left: 0; top: 0; width: 1920px; height: 1080px;
+    transform-origin: 0 0; overflow: hidden; background: var(--key);
+    font-family: var(--font);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .bar {
+    position: absolute; left: var(--mx); right: var(--mx); bottom: var(--my);
+    height: var(--bar-h); display: flex; align-items: stretch;
+    background: var(--bar-bg); border-radius: var(--radius); overflow: hidden;
+    transition: transform .6s cubic-bezier(.2, .8, .2, 1), background-color .3s;
+  }
+  .bar.top { top: var(--my); bottom: auto; }
+  .bar.hidden { transform: translateY(calc(100% + var(--my) + 40px)); }
+  .bar.top.hidden { transform: translateY(calc(-100% - var(--my) - 40px)); }
+  .bar.accent::after {
+    content: ''; position: absolute; left: 0; right: 0; top: 0; height: 4px;
+    background: var(--label-bg); z-index: 3; pointer-events: none;
+  }
+  .bar.top.accent::after { top: auto; bottom: 0; }
+
+  .label {
+    flex: none; position: relative; z-index: 2;
+    display: flex; align-items: center; gap: 18px; padding: 0 40px;
+    background: var(--label-bg); color: var(--label-color);
+    font-size: var(--label-fs); font-weight: 800; letter-spacing: -0.01em; white-space: nowrap;
+    transition: background-color .3s, color .3s;
+  }
+  .label[hidden], .label [hidden] { display: none !important; }
+  .label.shape-slant {
+    padding-right: calc(40px + var(--bar-h) * .38);
+    clip-path: polygon(0 0, 100% 0, calc(100% - var(--bar-h) * .38) 100%, 0 100%);
+  }
+  .label.shape-pill { margin: calc(var(--bar-h) * .14) 0 calc(var(--bar-h) * .14) calc(var(--bar-h) * .14); border-radius: 999px; padding: 0 32px; }
+  .logo { height: var(--logo-h); width: auto; display: block; }
+  .dot { display: none; width: .42em; height: .42em; border-radius: 50%; background: currentColor; animation: blink 1s steps(2, start) infinite; }
+  .emergency .dot { display: block; }
+  @keyframes blink { to { visibility: hidden; } }
+
+  .viewport { flex: 1; position: relative; overflow: hidden; }
+  .viewport.fade {
+    -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 56px, #000 calc(100% - 56px), transparent 100%);
+            mask-image: linear-gradient(90deg, transparent 0, #000 56px, #000 calc(100% - 56px), transparent 100%);
+  }
+  .track { position: absolute; left: 0; top: 0; bottom: 0; display: flex; align-items: center; will-change: transform; }
+  .seg { flex: none; display: flex; align-items: center; white-space: pre; }
+  .item { font-size: var(--fs); font-weight: var(--fw); color: var(--text); line-height: 1.25; letter-spacing: -0.01em; }
+  .sep { font-size: var(--fs); font-weight: var(--fw); color: var(--sep-color); line-height: 1.25; margin: 0 calc(var(--gap) / 2); }
+
+  .hud {
+    position: fixed; left: 24px; top: 24px; z-index: 10; max-width: 560px;
+    padding: 16px 20px; border-radius: 12px; background: rgba(0, 0, 0, .82); color: #fff;
+    font: 15px/1.6 'Pretendard Variable', 'Malgun Gothic', sans-serif;
+    transition: opacity .3s;
+  }
+  .hud.off { opacity: 0; pointer-events: none; }
+  .hud b { color: #a5b4fc; }
+  .hud .warn { color: #fca5a5; }
+  .hud kbd { padding: 1px 6px; border-radius: 4px; background: #374151; font: inherit; font-size: 13px; }
+</style>
+</head>
+<body>
+<div class="stage" id="stage"></div>
+<div class="hud off" id="hud"></div>
+<script src="ticker.js"></script>
+<script>
+(async function () {
+  const preview = new URLSearchParams(location.search).has('preview');
+  const stage = document.getElementById('stage');
+  const hud = document.getElementById('hud');
+  const renderer = new Ticker.Renderer(stage);
+  let mode = '…';
+  let connected = true;
+
+  function fit() {
+    const s = Math.min(innerWidth / Ticker.STAGE_W, innerHeight / Ticker.STAGE_H);
+    const dpr = devicePixelRatio || 1;
+    const x = Math.round(((innerWidth - Ticker.STAGE_W * s) / 2) * dpr) / dpr;
+    const y = Math.round(((innerHeight - Ticker.STAGE_H * s) / 2) * dpr) / dpr;
+    stage.style.transform = `translate(${x}px, ${y}px) scale(${s})`;
+    renderer.setScale(s);
+    updateHud();
+  }
+
+  function updateHud() {
+    if (preview) return;
+    const dpr = devicePixelRatio || 1;
+    const w = Math.round(innerWidth * dpr), h = Math.round(innerHeight * dpr);
+    const fs = !!document.fullscreenElement;
+    const okRes = w === 1920 && h === 1080;
+    hud.innerHTML =
+      `<div><b>Ticker 송출 화면</b> · 연결: ${mode === 'server' ? 'LAN 서버' : '로컬'}${connected ? '' : ' <span class="warn">(끊김 — 재연결 중)</span>'}</div>` +
+      `<div>실제 출력 ${w}×${h}px · 배율 ${Math.round(dpr * 100)}% · ${fs ? '전체화면' : '<span class="warn">창 모드</span>'}</div>` +
+      (fs && !okRes ? '<div class="warn">출력이 1920×1080이 아닙니다. 캡처보드 입력 해상도와 맞는지 확인하세요.</div>' : '') +
+      `<div>이 창을 캡처보드 모니터로 옮긴 뒤 <kbd>더블클릭</kbd> 또는 <kbd>F11</kbd>로 전체화면 · <kbd>I</kbd> 이 안내 표시/숨김</div>`;
+  }
+
+  let hudTimer;
+  function showHud(ms) {
+    if (preview) return;
+    updateHud();
+    hud.classList.remove('off');
+    clearTimeout(hudTimer);
+    if (ms) hudTimer = setTimeout(() => hud.classList.add('off'), ms);
+  }
+
+  addEventListener('resize', fit);
+  addEventListener('keydown', (e) => {
+    if (e.key === 'i' || e.key === 'I') {
+      if (hud.classList.contains('off')) showHud(0); else hud.classList.add('off');
+    }
+  });
+  addEventListener('dblclick', () => {
+    if (preview) return;
+    if (document.fullscreenElement) document.exitFullscreen();
+    else document.documentElement.requestFullscreen().catch(() => {});
+  });
+  document.addEventListener('fullscreenchange', () => showHud(4000));
+
+  let idleTimer;
+  addEventListener('mousemove', () => {
+    document.body.classList.remove('idle');
+    clearTimeout(idleTimer);
+    idleTimer = setTimeout(() => document.body.classList.add('idle'), 2000);
+  });
+
+  const bus = Ticker.createBus(
+    (s) => {
+      const state = Ticker.normalize(s);
+      document.body.style.background = state.style.keyColor;
+      renderer.setState(state);
+    },
+    (m, ok) => { mode = m; connected = ok; updateHud(); }
+  );
+
+  fit();
+  await bus.start();
+  if (!renderer.state) {
+    const state = Ticker.defaultState();
+    document.body.style.background = state.style.keyColor;
+    renderer.setState(state);
+  }
+  // 웹폰트가 늦게 로드되면 문구 폭이 달라지므로 다시 잰다
+  if (document.fonts) {
+    document.fonts.ready.then(() => renderer.remeasure());
+    document.fonts.addEventListener('loadingdone', () => renderer.remeasure());
+  }
+  showHud(6000);
+})();
+</script>
+</body>
+</html>
