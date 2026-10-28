@@ -76,16 +76,18 @@
     t.className = 'toast' + (error ? ' error' : '');
     t.hidden = false;
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => { t.hidden = true; }, error ? 4000 : 1800);
+    toastTimer = setTimeout(() => { t.hidden = true; }, error ? 6000 : 1800);
   }
 
   // 순서 보장: 발행 요청을 차례로 처리. make()는 차례가 왔을 때 최신 live로 계산된다
+  // 성공하면 true. 실패 이유는 여기서 안내한다
   function publish(make) {
     busy = busy.then(async () => {
       const next = typeof make === 'function' ? make() : make;
       try {
         await bus.publish(next);
         if (bus.mode === 'local') onState(next, true);
+        return true;
       } catch (err) {
         if (err.code === 'PIN') {
           const pin = prompt('이 서버는 PIN이 설정되어 있습니다. PIN을 입력하세요.');
@@ -93,13 +95,17 @@
             bus.setPin(pin);
             try {
               await bus.publish(next);
-              return;
+              return true;
             } catch (e2) { /* 아래에서 안내 */ }
           }
           toast('PIN이 맞지 않아 반영하지 못했습니다', true);
+        } else if (err instanceof TypeError) {
+          // fetch 자체가 실패 = 서버 프로그램이 꺼졌거나 네트워크가 끊김
+          toast('서버에 연결할 수 없어 반영하지 못했습니다. 티커 PC의 run.bat 창이 켜져 있는지, 같은 네트워크인지 확인하세요.', true);
         } else {
           toast('반영 실패: ' + err.message, true);
         }
+        return false;
       }
     });
     return busy;
@@ -214,7 +220,10 @@
       messages,
       contentRev: live.contentRev + 1,
       restartRev: now ? live.restartRev + 1 : live.restartRev,
-    })).then(() => toast(now ? '즉시 교체했습니다' : '다음 바퀴부터 반영됩니다'));
+    })).then((ok) => {
+      if (ok) toast(now ? '즉시 교체했습니다' : '다음 바퀴부터 반영됩니다');
+      else setDirty(true); // 작성한 문구를 잃지 않도록 미반영 상태로 되돌린다
+    });
   }
 
   /* ---------- 디자인 폼 ---------- */
@@ -665,13 +674,14 @@
         if (await saveDesigns()) renderDesigns(); else loadDesigns();
       }
       setDirty(false);
-      await publish(() => ({
+      const ok = await publish(() => ({
         ...s,
         visible: live.visible,
         emergency: live.emergency,
         contentRev: live.contentRev + 1,
         restartRev: live.restartRev + 1,
       }));
+      if (!ok) return;
       draft = clone(live.messages);
       renderList();
       toast('설정을 불러왔습니다');
@@ -724,11 +734,11 @@
   $('#emOn').addEventListener('click', () => {
     const text = $('#emText').value.trim();
     if (!text) { toast('긴급 공지 문구를 입력하세요', true); $('#emText').focus(); return; }
-    publish(() => withLive({ visible: true, emergency: { active: true, text } })).then(() => toast('긴급 공지를 송출했습니다'));
+    publish(() => withLive({ visible: true, emergency: { active: true, text } })).then((ok) => ok && toast('긴급 공지를 송출했습니다'));
   });
   $('#emOff').addEventListener('click', () => {
     publish(() => withLive({ emergency: { active: false, text: live.emergency.text }, restartRev: live.restartRev + 1 }))
-      .then(() => toast('일반 공지로 돌아갔습니다'));
+      .then((ok) => ok && toast('일반 공지로 돌아갔습니다'));
   });
 
   $('#saveDesignForm').addEventListener('submit', (e) => {
