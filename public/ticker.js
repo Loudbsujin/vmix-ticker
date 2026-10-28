@@ -71,6 +71,7 @@
         floatMotion: 'rise',
         floatArea: 'full',
         floatMax: 5,
+        floatDuplicates: false,
         floatInterval: 2.5,
         floatSpeed: 60,
         floatLife: 8,
@@ -490,9 +491,10 @@
         this.queue.shift();
         if (it) return it;
       }
+      // 중복 허용이면 순서대로 계속, 아니면 이미 떠 있는 멘트는 건너뛴다
       for (let k = 0; k < items.length; k++) {
         const it = items[this.cursor++ % items.length];
-        if (!this.bubbles.some((b) => b.id === it.id && !b.dying)) return it;
+        if (this.state.style.floatDuplicates || !this.bubbles.some((b) => b.id === it.id && !b.dying)) return it;
       }
       return null;
     }

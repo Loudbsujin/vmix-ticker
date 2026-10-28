@@ -77,6 +77,7 @@
     { key: 'floatFontSize', label: '글자 크기', type: 'range', min: 20, max: 100, unit: 'px' },
     { key: 'floatWeight', label: '굵기', type: 'select', options: WEIGHTS },
     { key: 'floatMax', label: '동시에 떠 있는 개수', type: 'range', min: 1, max: 12, unit: '개' },
+    { key: 'floatDuplicates', label: '같은 멘트도 여러 개 동시에 띄우기', type: 'check' },
     { key: 'floatInterval', label: '새 멘트 등장 간격', type: 'range', min: 0.5, max: 10, step: 0.5, unit: '초' },
     { key: 'floatSpeed', label: '움직이는 속도', type: 'range', min: 10, max: 200, step: 5, unit: 'px/초' },
     { key: 'floatLife', label: '머무는 시간 (둥실 떠다니기)', type: 'range', min: 3, max: 30, unit: '초' },
